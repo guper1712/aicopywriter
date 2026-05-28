@@ -240,20 +240,48 @@ def download_color(session, out_dir, article, color_code, page_url, dry_run=Fals
     return count
 
 
+MAX_CANDIDATES = 12  # сколько товаров из выдачи проверять на точное совпадение
+
+
 def find_product_page(session, article):
-    """Ищет товар по артикулу и возвращает URL страницы товара (или None)."""
-    url = SEARCH_URL.format(q=quote(str(article)))
-    html = http_get(session, url)
+    """
+    Ищет товар по артикулу и возвращает (url, html) страницы товара, на которой
+    РЕАЛЬНО присутствует этот артикул (точное совпадение по коду вида
+    G081GL011.000.<артикул>.VRxxx). Если точного совпадения нет — (None, None).
+
+    Так отсеиваются «похожие» товары, которые поиск отдаёт для несуществующих
+    или мусорных артикулов (например 12345).
+    """
+    article = str(article).strip()
+    search = SEARCH_URL.format(q=quote(article))
+    html = http_get(session, search)
     if not html:
-        return None
-    # Если поиск сразу отдал страницу товара — на ней будут свотчи цветов.
+        return None, None
+
+    # Кандидаты на проверку. Если поиск сразу открыл карточку товара
+    # (есть свотчи цветов) — это первый кандидат.
+    candidates = []
     if RE_COLOR_SWATCH.search(html):
-        # Это уже страница товара (поиск по точному коду часто редиректит на неё).
-        # Берём canonical, если есть.
         m = re.search(r'rel="canonical"\s+href="([^"]+)"', html)
-        return m.group(1) if m else url
-    links = extract_product_links(html)
-    return links[0] if links else None
+        candidates.append(m.group(1) if m else search)
+    candidates += extract_product_links(html)
+
+    seen = set()
+    for url in candidates:
+        if not url or url in seen:
+            continue
+        seen.add(url)
+        if url == search:
+            page = html
+        else:
+            page = http_get(session, url)
+            time.sleep(DELAY_BETWEEN_REQUESTS)
+        # Точное совпадение: артикул присутствует на странице товара.
+        if page and article in page:
+            return url, page
+        if len(seen) >= MAX_CANDIDATES:
+            break
+    return None, None
 
 
 # ---------------------------------------------------------------------------
@@ -279,14 +307,13 @@ def run(excel_path, out_dir, dry_run=False, limit=None):
 
         for n, article in enumerate(articles, 1):
             print(f"[{n}/{len(articles)}] артикул {article}")
-            page = find_product_page(session, article)
+            page, html = find_product_page(session, article)
             if not page:
-                print("    товар не найден поиском")
+                print("    товар не найден (нет точного совпадения по артикулу)")
                 w.writerow([article, "НЕ НАЙДЕН", "", 0, 0])
                 not_found.append(article)
                 continue
 
-            html = http_get(session, page)
             colors = extract_colors(html) if html else []
             if not colors:
                 # Нет свотчей — обрабатываем как одноцветный товар.
