@@ -287,10 +287,15 @@ def find_product_page(session, article):
 # ---------------------------------------------------------------------------
 # Основной проход
 # ---------------------------------------------------------------------------
-def run(excel_path, out_dir, dry_run=False, limit=None):
-    rows = read_excel(excel_path)
-    # Уникальные артикулы, сохраняя порядок появления.
-    articles = list(dict.fromkeys(a for a, _ in rows))
+def run(excel_path, out_dir, dry_run=False, limit=None, only=None):
+    if only:
+        # Тестовый режим: обрабатываем только указанные артикулы (без Excel).
+        articles = [a.strip() for a in only.split(",") if a.strip()]
+        rows = [(a, "") for a in articles]
+    else:
+        rows = read_excel(excel_path)
+        # Уникальные артикулы, сохраняя порядок появления.
+        articles = list(dict.fromkeys(a for a, _ in rows))
     if limit:
         articles = articles[:limit]
 
@@ -357,15 +362,16 @@ def main():
     ap.add_argument("--out", default="photos", help="папка для сохранения (по умолчанию ./photos)")
     ap.add_argument("--dry-run", action="store_true", help="не качать, только показать что бы скачалось")
     ap.add_argument("--limit", type=int, help="обработать только первые N артикулов (для теста)")
+    ap.add_argument("--only", help="проверить только эти артикулы через запятую (без Excel), напр. 1792406,12345")
     ap.add_argument("--selftest", metavar="HTML", help="оффлайн-проверка парсинга на сохранённой странице")
     args = ap.parse_args()
 
     if args.selftest:
         selftest(args.selftest)
         return
-    if not args.excel:
-        ap.error("укажите --excel <файл.xlsx> или --selftest <страница.html>")
-    run(args.excel, args.out, dry_run=args.dry_run, limit=args.limit)
+    if not args.excel and not args.only:
+        ap.error("укажите --excel <файл.xlsx>, либо --only <артикулы>, либо --selftest <страница.html>")
+    run(args.excel, args.out, dry_run=args.dry_run, limit=args.limit, only=args.only)
 
 
 if __name__ == "__main__":
