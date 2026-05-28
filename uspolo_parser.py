@@ -56,7 +56,8 @@ HEADERS = {
 }
 
 REQUEST_TIMEOUT = 30
-DELAY_BETWEEN_REQUESTS = 1.0   # пауза между запросами, сек (вежливость к сайту)
+DELAY_BETWEEN_REQUESTS = 0.6   # пауза между запросами к сайту, сек (вежливость)
+IMAGE_DELAY = 0.15             # пауза между скачиванием фото с CDN (можно меньше)
 MAX_RETRIES = 4
 
 # ---------------------------------------------------------------------------
@@ -235,7 +236,7 @@ def download_color(session, out_dir, article, color_code, page_url, dry_run=Fals
             with open(fpath, "wb") as f:
                 f.write(data)
             count += 1
-        time.sleep(DELAY_BETWEEN_REQUESTS)
+        time.sleep(IMAGE_DELAY)
     print(f"    цвет {color_code}: {count} фото -> {folder}")
     return count
 
