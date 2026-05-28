@@ -243,6 +243,17 @@ def download_color(session, out_dir, article, color_code, page_url, dry_run=Fals
 MAX_CANDIDATES = 12  # сколько товаров из выдачи проверять на точное совпадение
 
 
+def article_matches(page, article):
+    """
+    True, если на странице товара есть код с этим артикулом в строгом формате:
+        <...>.000.<артикул>.VRxxx   (напр. G081GL011.000.1792406.VR041)
+    Просто наличие числа на странице НЕ считается совпадением — иначе короткие
+    мусорные номера (12345) ложно срабатывают на путях/скриптах.
+    """
+    pat = r'\.' + re.escape(str(article).strip()) + r'\.[A-Z]{2}\d+'
+    return re.search(pat, page) is not None
+
+
 def find_product_page(session, article):
     """
     Ищет товар по артикулу и возвращает (url, html) страницы товара, на которой
@@ -276,8 +287,8 @@ def find_product_page(session, article):
         else:
             page = http_get(session, url)
             time.sleep(DELAY_BETWEEN_REQUESTS)
-        # Точное совпадение: артикул присутствует на странице товара.
-        if page and article in page:
+        # Точное совпадение: артикул присутствует на странице как сегмент кода.
+        if page and article_matches(page, article):
             return url, page
         if len(seen) >= MAX_CANDIDATES:
             break
