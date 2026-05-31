@@ -37,7 +37,7 @@ from urllib.parse import urlparse
 import requests
 
 BASE = "https://uspa.in.ua"
-SITEMAP = BASE + "/sitemap.xml"
+SITEMAP = BASE + "/cache/sitemap.xml"   # реальна карта сайту (з robots.txt)
 HEADERS = {
     "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
                    "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"),
@@ -160,13 +160,23 @@ def parse_product(html):
 # ---------------------------------------------------------------------------
 # Перечисление товаров: sitemap (с поддержкой sitemap-index) или файл
 # ---------------------------------------------------------------------------
+def discover_sitemap(session):
+    """Находит адрес sitemap из robots.txt (строка 'Sitemap: ...')."""
+    txt = http_get(session, BASE + "/robots.txt")
+    if txt:
+        m = re.search(r"(?im)^\s*Sitemap:\s*(\S+)", txt)
+        if m:
+            return m.group(1).strip()
+    return None
+
+
 def collect_urls_from_sitemap(session, sitemap_url, _depth=0):
     xml = http_get(session, sitemap_url)
     if not xml:
         return []
     locs = re.findall(r"<loc>\s*([^<\s]+)\s*</loc>", xml, re.I)
     # sitemap-index → рекурсивно
-    if "<sitemapindex" in xml.lower() and _depth < 3:
+    if "<sitemapindex" in xml.lower() and _depth < 4:
         urls = []
         for sm in locs:
             urls += collect_urls_from_sitemap(session, sm, _depth + 1)
@@ -227,8 +237,9 @@ def run(out_dir, urls_file=None, sitemap=SITEMAP, want_images=False, limit=None,
         with open(urls_file, encoding="utf-8") as f:
             urls = [ln.strip() for ln in f if ln.strip() and "/product/" in ln]
     else:
-        print("Збираю список товарів із sitemap...")
-        urls = collect_urls_from_sitemap(session, sitemap)
+        sm = discover_sitemap(session) or sitemap
+        print(f"Збираю список товарів із sitemap: {sm}")
+        urls = collect_urls_from_sitemap(session, sm)
     urls = list(dict.fromkeys(urls))
     if limit:
         urls = urls[:limit]
