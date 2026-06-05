@@ -4,7 +4,7 @@ export default async function handler(req, res) {
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
-      "Authorization": "Bearer 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", // вставь сюда свой ключ
+      "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
